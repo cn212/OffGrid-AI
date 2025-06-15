@@ -66,7 +66,7 @@
         }
 
         .chat-header {
-        background: linear-gradient(135deg, #061b1a 0%, #cfa7c0 100%);
+        background: linear-gradient(135deg, #b2aafc 0%, #cfa7c0 100%);
         padding: 20px;
         color: white;
         text-align: center;
@@ -494,6 +494,129 @@
     transform: translateY(0); /* Reset lift on click */
     box-shadow: 0 2px 4px rgba(255, 77, 77, 0.2); /* Reduced shadow */
 }
+
+/* Modal background overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+/* Show modal when active */
+.modal-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Modal container */
+.modal {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    width: 300px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    animation: fadeIn 0.3s ease;
+}
+
+/* Modal header */
+.modal h3 {
+    margin-bottom: 10px;
+    font-size: 18px;
+    color: #333;
+}
+
+/* Input field */
+.modal input {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.modal input:focus {
+    border-color: #4facfe;
+    box-shadow: 0 0 5px rgba(79, 172, 254, 0.5);
+}
+
+/* Buttons */
+.modal button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.modal button.create {
+    background: #4caf50;
+    color: white;
+}
+
+.modal button.create:hover {
+    background: #45a049;
+}
+
+.modal button.cancel {
+    background: #f44336;
+    color: white;
+    margin-left: 10px;
+}
+
+.modal button.cancel:hover {
+    background: #e53935;
+}
+
+/* Fade-in animation */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.settings-button-wrapper {
+    position: absolute;
+    top: 20px;
+    right: 80px; /* Adjust position as needed */
+    z-index: 3;
+}
+
+.settings-button {
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.settings-button:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
 </style>
 
 
@@ -557,6 +680,18 @@
         </div>
     </div>
 
+    <!-- Modal for creating a new profile -->
+    <div class="modal-overlay" id="createProfileModal">
+        <div class="modal">
+            <h3>Create New Profile</h3>
+            <input type="text" id="newProfileName" placeholder="Enter profile name" />
+            <div class="modal-buttons">
+                <button class="create" id="createProfileButton">Create</button>
+                <button class="cancel" id="cancelProfileButton">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
     let currentProfile = { name: 'gemma3', systemPrompt: '' }; // Default profile
     document.getElementById('currentProfileDisplay').textContent = currentProfile.name; // Default text
@@ -569,13 +704,24 @@
     });
 
     // Handle Send button click
-    document.getElementById('sendButton').addEventListener('click', async function() {
+    document.getElementById('sendButton').addEventListener('click', async function () {
         const input = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
         const message = input.value.trim();
         if (!message) return;
 
         const chatMessages = document.getElementById('chatMessages');
         const typingIndicator = document.getElementById('typingIndicator');
+
+        // Change send button to loading state
+        sendButton.disabled = true;
+        sendButton.innerHTML = `
+            <svg width="20" height="20" viewBox="0 0 50 50" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="25" cy="25" r="20" stroke="currentColor" stroke-width="4" stroke-dasharray="31.4 31.4" stroke-linecap="round">
+                    <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite" />
+                </circle>
+            </svg>
+        `;
 
         // Show typing indicator
         typingIndicator.classList.add('visible');
@@ -593,45 +739,58 @@
         try {
             const messages = [{ role: "user", content: message }];
             if (currentProfile.systemPrompt) {
-               messages.unshift({ role: "system", content: currentProfile.systemPrompt });
+                messages.unshift({ role: "system", content: currentProfile.systemPrompt });
             }
-            console.log("Messages array:", messages); // Debugging
-
-            const response = await fetch('http://localhost:11434/api/chat', {
+            fetch('http://localhost:8080/http://localhost:11434/api/generate', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: currentProfile.name, // Use currentProfile here
-                    messages: [
-                        { role: "user", content: message },
-                    ],
-                    stream: false
-                })
-            });
-            console.log("API response status:", response.status); // Debugging
+                headers: {
+                'Content-Type': 'application/json'
+                         },
+                     body: JSON.stringify({ prompt: 'Hello', model: 'llama2' })
+              });
+            //const response = await fetch('http://localhost:11434/api/chat', {
+                //method: 'POST',
+                //headers: { 'Content-Type': 'application/json' },
+               // body: JSON.stringify({
+                    //model: currentProfile.name,
+                    //messages: messages,
+                    //stream: false
+                
+                //})
+           // })
+
             const data = await response.json();
             const aiReply = data.message?.content || "No response from AI.";
-            console.log("API response:", data); // Debugging
-            
-            const aiReplyCleaned = aiReply.replace(/\*/g, '');
+
             // Hide typing indicator
             typingIndicator.classList.remove('visible');
 
             // Display bot message
             const botMsgDiv = document.createElement('div');
             botMsgDiv.className = 'message bot';
-            botMsgDiv.innerHTML = `<div class="message-content">${aiReplyCleaned}</div>`;
+            botMsgDiv.innerHTML = `<div class="message-content">${aiReply}</div>`;
             chatMessages.appendChild(botMsgDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
         } catch (error) {
-            console.error("Fetch error:", error); // Debugging
-            // Hide typing indicator on error as well
+            console.error("Fetch error:", error);
+
+            // Hide typing indicator on error
             typingIndicator.classList.remove('visible');
+
             const botMsgDiv = document.createElement('div');
             botMsgDiv.className = 'message bot';
             botMsgDiv.innerHTML = `<div class="message-content">Error: ${error.message}</div>`;
             chatMessages.appendChild(botMsgDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+        } finally {
+            // Restore send button to its original state
+            sendButton.disabled = false;
+            sendButton.innerHTML = `
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22,2 15,22 11,13 2,9"></polygon>
+                </svg>
+            `;
         }
     });
     // Add event listener for the clear chat button
@@ -795,6 +954,10 @@
         // Event listener for the checkbox
         checkbox.addEventListener('change', toggleDarkMode);
     });
+
+    document.getElementById('settingsButton').addEventListener('click', function() {
+    window.location.href = 'settings.html'; // Redirect to the settings page
+});
     </script>
 </body>
 </html>
